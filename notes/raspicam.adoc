@@ -1,0 +1,347 @@
+:toc:
+:toc-placement!:
+
+Here is my preamble paragraph, but I could really place the TOC anywhere! Lorem ipsum foo bar baz.
+
+toc::[]
+
+= Video Camera Project
+
+== Raspberry Pi Video
+
+[[mjpeg_streamer]]
+=== MJPEG Streamer on the Raspberry Pi
+Streaming MJPEG is supposed to be a bandwidth hog compared to H264.
+I'm streaming over 802.11b with about 1 Mb of bandwidth.
+I do not notice the MJPEG having a longer latency.
+The latency is 1-2 seconds, and I get the same results with other approaches.
+Even my expensive Nest cameras have a 0.5 to 1 second lag over a 5 GHz wifi connection.
+
+What I like about this approach is that there is executable running on the pi -- the MJPEG streamer process.
+Also, I have not spent the time to study all the RTP protocols and I do not understand them.
+MJPEG streamer is very straight forward.
+The raspberry pi waits for an HTTP request on a particular port and then responds with the video.
+Pefect client-server model where the raspberry pi is the server.
+No fuss.
+No muss.
+
+==== Install and Run MJPEG streamer on the Raspberry Pi
+
+. Follow installation instructions
+`https://github.com/jacksonliam/mjpg-streamer`
+
+. Run MJPEG streamer on the Raspberry Pi.
++
+----
+mjpg_streamer -i "input_raspicam.so -x 640 -y 480 -fps 24" -o output_http.so
+----
+
+==== Test MJPEG Video Stream from a Browser
+
+The IP address of my Raspberry Pi is `192.168.0.131`
+
+----
+http://192.168.0.131:8080?action=stream
+----
+
+This process will continue to stream video until it dies.
+The keep it running, create a service to automatically restart the process if it dies.
+
+[[raspivid]]
+=== An Alternative Approach -- Raspivid
+
+Serving raw h264.
+----
+raspivid -w 320 -h 240 -t 0 -rot 270 --flush -l -o tcp://0.0.0.0:1234
+----
+
+View the video in VLC. Open network stream `tcp/h264://webcam.local:1234`
+
+
+Multicasting raw UPD h264
+----
+raspivid -w 320 -h 240 -t 0 -rot 270 --flush -o udp://239.0.0.1:5005
+----
+
+UNABLE TO VIEW IN VLC. :-(
+
+
+== Linux Laptop Video
+
+=== Install v4l2 module
+
+The cameras available for video conferencing show up as files in Linux.
+UNIX people will know why.
+
+If you have a video input device already connected to your computer, you can list it:
+
+----
+ls -l /dev/video*
+----
+
+To install the loopback camera (also called the _dummy device_),
+we need to install a kernel module.
+
+[WARNING]
+====
+Installing the v4l2 kernel module using a package manager (in this case, `apt`) did not work well for me.
+Compiling the module from source worked better.
+====
+
+. Compile and install the kernel module
++
+Follow the instructions in the README https://github.com/umlaeute/v4l2loopback
++
+. I had to reboot here to get the module to install.
++
+----
+sudo reboot
+----
++
+. Install the associated utilities.
+----
+  sudo apt install v4l-utils
+----
+. List cameras. No virtual (dummy) camera in list.
++
+----
+  v4l2-ctl --list-devices
+----
+
+. Add the v4l2 module to the running kernel
++
+----
+sudo modprobe v4l2loopback exclusive_caps=1
+----
++
+The option `exclusive_caps=1` helps programs like Zoom recognize the dummy device as a legitimate camera.
++
+[IMPORTANT]
+====
+Rebooting loses the v4l2loopback device. +
+Add string `v4l2loopback exclusive_caps=1` on its own line in the `/etc/modules` file to load them module at boot time.
+====
+
+. List cameras again.
++
+----
+v4l2-ctl --list-devices
+----
++
+Look for a new item `Dummy video device (0x0000) (platform:v4l2loopback-000)`
++
+Note the device name.
+My dummy device was `/dev/video0/`
+Executing the modprobe from the command line generally creates
+
+=== Test Dummy/Loopback Device
+
+. Install FFMPEG
++
+----
+sudo apt install ffmpeg
+----
+
+. Send video to dummy device.
++
+Use some mp4 video you have lying around. +
+My mp4 file is named `test.mp4` +
+(Remember that your dummy device may be different than `/dev/video0`)
++
+----
+ffmpeg -re -i sample.mp4 -f v4l2 /dev/video0
+----
+
+== Connecting Raspberry Pi Camera Feed
+
+=== Using MJPEG and FFMPEG
+
+If you are using <<mjpeg_streamer,MJPEG Streamer>>, use this FFMPEG command to receive the video stream, then forward it to your dummy device.
+ Remember that your dummy device may be different than `/dev/video0`.
+
+----
+ffmpeg -hide_banner -loglevel warning -i "http://webcam.local:8080/?action=stream" -vf format=yuv420p -f v4l2 /dev/video0
+----
+
+Now open up Zoom, go to settings, and choose the dummy device from the list of available cameras.
+
+=== Using Raspivid and FFMPEG
+
+This approach is fragile, but but has the lowest latency (< 0.5 seconds).
+Raspivid seems capable of only handling a single client.
+If the FFMPEG client process dies, the Raspivid process will also die.
+If the Raspivid process dies, the FFMPEG process exits.
+
+. Make sure the <<raspivid, Raspivid process>> is running.
+
+. Then start the FFMPEG on your computer.
++
+----
+ffmpeg -loglevel warning -i "tcp://webcam.local:1234" -vf format=yuv420p -f v4l2 /dev/video0
+----
+
+== Linux Laptop Audio
+
+. Find the ALSA address of your microphone on your raspberry pi.
+To see the input devices (microphones) execute:
++
+----
+acrecord -l
+----
++
+On my pi, this command prints out:
++
+----
+**** List of CAPTURE Hardware Devices ****
+card 1: Device [USB PnP Sound Device], device 0: USB Audio [USB Audio]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+----
++
+The address of my microphone is `1,0` (card 1, device 0).
+
+
+. Run this on the raspberry pi to send an audio stream to a multicast IP address (239.0.0.1) and port 5004.
++
+----
+ffmpeg -re -ac 1 -f alsa -i hw:1,0 -filter:a "volume=10.0" -acodec libmp3lame  -ac 1 -f rtp rtp://239.0.0.1:5004
+----
+
+. Use VLC to open the network stream `rtp://239.0.0.1:5004`.
+
+
+[appendix]
+== Commands, Tips, and Notes
+
+==== Undocumented v4l2-ctl command
+
+----
+v4l2-ctl -i /dev/video0 --list-formats
+----
+
+==== Install v4l2 loopback on raspberry pi
+
+https://www.raspberrypi.org/forums/viewtopic.php?t=253875
+
+https://github.com/umlaeute/v4l2loopback
+
+==== FFMPEG Video Encoding Quality
+
+The option `-crf 21` is the video quality.
+51 is the worst quality and 1 the best.
+Lower value means better quality, but larger files.
+
+[appendix]
+== Multicast RTP
+
+This has a full 5 seconds of lag.
+
+On the raspberry pi, run:
++
+----
+ffmpeg -i /dev/video0  -c:v h264_omx -f rtp -sdp_file video.sdp  "rtp://239.0.0.1:5000"
+----
+
+This generates an (invalid) SDP file names `video.sdp`. For example:
+
+----
+SDP:
+v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=No Name
+c=IN IP4 239.0.0.1
+t=0 0
+a=tool:libavformat 58.20.100
+m=video 5000 RTP/AVP 96
+b=AS:200
+a=rtpmap:96 H264/90000
+a=fmtp:96 packetization-mode=1
+----
+
+The `SDP:` line should not exist.
+Copy everything from line 2 to the end into a file named `video.sdp` on your linux computer.
+
+Then pass the file to VLC:
+
+----
+cvlc vide.sdp
+----
+
+Enjoy your laggy video!
+
+[appendix]
+== Camera Direct to FFMPEG
+This is so cool!
+
+This works! It records 5 seconds of video.
+
+----
+ffmpeg -re  -f video4linux2 -input_format h264  -framerate 30 -i /dev/video0 -vcodec copy -an -t 5 test.mp4
+----
+
+Seems to work without the `-an` (`-an` means _skip audio_).
+
+----
+ffmpeg -re  -f video4linux2 -input_format h264  -framerate 30 -i /dev/video0 -vcodec copy  -t 5 test.mp4
+----
+
+Removing `-framerate 30` does not change anything. It is still 30.42 FPS.
+
+----
+ffmpeg -v error -re  -f video4linux2 -input_format h264 -i /dev/video0 -vcodec copy  -t 5 test.mp4
+----
+
+Removing `-re` does not change output framerate.
+
+----
+ffmpeg -v error  -f video4linux2 -input_format h264 -i /dev/video0 -vcodec copy  -t 5 test.mp4
+----
+
+[appendix]
+== FFMPEG to HLS
+This approach was https://www.martin-riedl.de/2018/08/24/using-ffmpeg-as-a-hls-streaming-server-part-1/[copied from an article by Martin Riedl].
+
+These options generate the HLS
+
+----
+-f hls -hls_time 4 -hls_playlist_type event stream.m3u8
+----
+
+____
+`-f hls` defines the output format HLS
+
+`-hls_time 4` slices the video and audio into segments with a duration of 4 seconds. The default value in FFmpeg is 2 seconds. Apple recommends a duration of 6 seconds.
+
+`-hls_playlist_type event` tells HLS to not remove old segments. Usually the HLS livestream contains only the last x segments. Older segments are automatically deleted. Using this command no segments are deleted. This gives the user the option to go back in the stream (DVR/re-live) or to pause the live stream.
+
+`stream.m3u8` is the name of the playlist file. This contains a list of all available segments and is the main file for the player.
+____
+
+Add these option to ensure that each segment is really 4 seconds.
+
+NOTE: The -g option didn't change anything for me. Need to test the threshold option too.
+Remove them if they don't do anything.
+
+----
+-g 30 -sc_threshold 0
+----
+
+
+`-g 30` sets the group picture size to 30.
+If the framerate is 30 FPS, then a new picture group will be created every second.
+Creeating a new group creates a new **I-Frame**.
+
+
+`-sc_threshold 0` When FFmpeg detects a new scene, it creates an **I-Frame**.
+This options prevents that by disabling scene detection.
+
+This command creates the HLS segments and m3u8 file:
+
+----
+ffmpeg -v error  -f video4linux2 -input_format h264 -i /dev/video0 -vcodec copy -f hls -hls_time 4 -sc_threshold 0 -hls_playlist_type event stream.m3u8
+----
+
+[appendix]
+== raspi-live
+
+https://github.com/jaredpetersen/raspi-live
