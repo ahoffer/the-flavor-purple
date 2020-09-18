@@ -345,3 +345,11 @@ ffmpeg -v error  -f video4linux2 -input_format h264 -i /dev/video0 -vcodec copy 
 == raspi-live
 
 https://github.com/jaredpetersen/raspi-live
+
+== OTHER STUFF
+
+https://gist.github.com/moritzmhmk/48e5ed9c4baa5557422f16983900ca95
+
+https://trac.ffmpeg.org/wiki/Capture/Webcam
+
+https://www.panopto.com/blog/the-way-video-works-online-has-changed/
