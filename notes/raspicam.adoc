@@ -5,12 +5,15 @@ Here is my preamble paragraph, but I could really place the TOC anywhere! Lorem 
 
 toc::[]
 
-= Video Camera Project
 
-== Raspberry Pi Video
+'''
+
+= Stream Video From Raspberry Pi
+
+'''
 
 [[mjpeg_streamer]]
-=== MJPEG Streamer on the Raspberry Pi
+== MJPEG Streamer
 Streaming MJPEG is supposed to be a bandwidth hog compared to H264.
 I'm streaming over 802.11b with about 1 Mb of bandwidth.
 I do not notice the MJPEG having a longer latency.
@@ -47,26 +50,27 @@ http://192.168.0.131:8080?action=stream
 This process will continue to stream video until it dies.
 The keep it running, create a service to automatically restart the process if it dies.
 
-[[raspivid]]
-=== An Alternative Approach -- Raspivid
+'''
 
-Serving raw h264.
+[[raspivid]]
+= Raspivid Serving Raw h264
 ----
 raspivid -w 320 -h 240 -t 0 -rot 270 --flush -l -o tcp://0.0.0.0:1234
 ----
 
 View the video in VLC. Open network stream `tcp/h264://webcam.local:1234`
 
-
 Multicasting raw UPD h264
 ----
 raspivid -w 320 -h 240 -t 0 -rot 270 --flush -o udp://239.0.0.1:5005
 ----
 
-UNABLE TO VIEW IN VLC. :-(
+NOTE: UNABLE TO VIEW IN VLC. :-(
 
 
-== Linux Laptop Video
+= Video Stream to Virtual Camera on Linux Desktop
+
+'''
 
 === Install v4l2 module
 
@@ -134,6 +138,8 @@ Note the device name.
 My dummy device was `/dev/video0/`
 Executing the modprobe from the command line generally creates
 
+'''
+
 === Test Dummy/Loopback Device
 
 . Install FFMPEG
@@ -152,9 +158,13 @@ My mp4 file is named `test.mp4` +
 ffmpeg -re -i sample.mp4 -f v4l2 /dev/video0
 ----
 
-== Connecting Raspberry Pi Camera Feed
+'''
 
-=== Using MJPEG and FFMPEG
+== Connect Video Stream to Virtual Camera
+
+'''
+
+=== With MJPEG and FFMPEG...
 
 If you are using <<mjpeg_streamer,MJPEG Streamer>>, use this FFMPEG command to receive the video stream, then forward it to your dummy device.
  Remember that your dummy device may be different than `/dev/video0`.
@@ -165,7 +175,9 @@ ffmpeg -hide_banner -loglevel warning -i "http://webcam.local:8080/?action=strea
 
 Now open up Zoom, go to settings, and choose the dummy device from the list of available cameras.
 
-=== Using Raspivid and FFMPEG
+'''
+
+=== With Raspivid and FFMPEG...
 
 This approach is fragile, but but has the lowest latency (< 0.5 seconds).
 Raspivid seems capable of only handling a single client.
@@ -179,6 +191,8 @@ If the Raspivid process dies, the FFMPEG process exits.
 ----
 ffmpeg -loglevel warning -i "tcp://webcam.local:1234" -vf format=yuv420p -f v4l2 /dev/video0
 ----
+
+
 
 == Linux Laptop Audio
 
@@ -319,13 +333,9 @@ ____
 
 Add these option to ensure that each segment is really 4 seconds.
 
-NOTE: The -g option didn't change anything for me. Need to test the threshold option too.
-Remove them if they don't do anything.
-
 ----
 -g 30 -sc_threshold 0
 ----
-
 
 `-g 30` sets the group picture size to 30.
 If the framerate is 30 FPS, then a new picture group will be created every second.
@@ -335,11 +345,33 @@ Creeating a new group creates a new **I-Frame**.
 `-sc_threshold 0` When FFmpeg detects a new scene, it creates an **I-Frame**.
 This options prevents that by disabling scene detection.
 
-This command creates the HLS segments and m3u8 file:
+==== This command creates the HLS segments and m3u8 file
 
 ----
-ffmpeg -v error  -f video4linux2 -input_format h264 -i /dev/video0 -vcodec copy -f hls -hls_time 4 -sc_threshold 0 -hls_playlist_type event stream.m3u8
+ffmpeg -v error  -f video4linux2 -input_format h264 -i /dev/video0 -vcodec copy -f hls -hls_time 4 -sc_threshold 0 stream.m3u8
 ----
+
+NOTE: Removed `-hls_playlist_type event` or the segments will accumlate until the storage volume is full.
+
+'''
+
+==== Playback
+FFMPEG beings writing `.ts` files that each contain about 4 seconds of video.
+It also writes a file `stream.m3u8` that keeps tracks of all the segments.
+I started a webserver in the directory where these files are written:
+
+```
+python3 -m http.server 8000
+```
+
+I pointed Chrome to the web server (`http://webcam:8000`).
+Selecting the `stream.m3u8` prompts a download of the file; Chrome cannot display HLS natively.
+
+
+I installed an extension called _Native HLS Playback_.
+After installing the extension, selecting the file  `stream.m3u8` started playing the video in chrome.
+
+
 
 [appendix]
 == raspi-live
