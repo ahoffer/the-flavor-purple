@@ -1,0 +1,177 @@
+== Up and running with an nginx media server
+
+. Instructions here: https://www.nginx.com/blog/video-streaming-for-remote-learning-with-nginx/#configure
+. The configure command that actually worked:
++
+```
+./auto/configure --add-module=../nginx-rtmp-module --with-http_mp4_module --with-cc-opt="-Wimplicit-fallthrough=0"
+```
+
+. FFMPEG command to stream to the server:
++
+```
+ffmpeg -re -i big_buck_bunny_640_512kb.mp4 -vcodec copy -loop -1 -c:a aac -b:a 160k -ar 44100 -strict -2 -f flv rtmp://127.0.0.1/live/bbb
+
+```
+
+The `nginx.conf` file.
+I had to add some CORS stuff that I didn't understand, but made the CORS errors go away.
+
+```
+#user  nobody;
+worker_processes  1;
+
+#error_log  logs/error.log;
+#error_log  logs/error.log  notice;
+#error_log  logs/error.log  info;
+
+#pid        logs/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+rtmp {
+    server {
+        listen 1935;
+        application live {
+            live on;
+            interleave on;
+            hls on;
+            # Path /tmp/hls is a file system path, not the web server's root context
+            hls_path /tmp/hls;
+            hls_fragment 15s;
+            dash on;
+            dash_path /tmp/dash;
+            dash_fragment 15s;
+        }
+    }
+}
+
+http {
+    default_type application/octet-stream;
+
+    server {
+        listen 80;
+        location / {
+
+            # Pick the directory on the file system to serve as root.
+            root /tmp/;
+
+             if ($request_method = 'OPTIONS') {
+
+                add_header 'Access-Control-Allow-Origin' '*';
+
+                #
+                # Om nom nom cookies
+                #
+
+                add_header 'Access-Control-Allow-Credentials' 'true';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+
+                #
+                # Custom headers and headers various browsers *should* be OK with but aren't
+                #
+
+                add_header 'Access-Control-Allow-Headers' 'DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+
+                #
+                # Tell client that this pre-flight info is valid for 20 days
+                #
+
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Length' 0;
+
+                return 204;
+             }
+
+             if ($request_method = 'POST') {
+
+                add_header 'Access-Control-Allow-Origin' '*';
+                add_header 'Access-Control-Allow-Credentials' 'true';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                add_header 'Access-Control-Allow-Headers' 'DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+
+             }
+
+             if ($request_method = 'GET') {
+
+                add_header 'Access-Control-Allow-Origin' '*';
+                add_header 'Access-Control-Allow-Credentials' 'true';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                add_header 'Access-Control-Allow-Headers' 'DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+
+             }
+        }
+    }
+
+    types {
+        application/vnd.apple.mpegurl m3u8;
+        video/mp2t ts;
+        text/html html;
+        application/dash+xml mpd;
+    }
+}
+```
+
+The VLC network URLs
+
+`http://127.0.0.1/hls/bbb.m3u8`
+
+`http://127.0.0.1/dash/bbb.mpd`
+
+`rtmp://127.0.0.1/live/bbb`
+
+== Creating the Web Page
+
+I created a file named `vid.html` and used the VideoJS library to display the video as MPEG DASH, HLS, or RTMP (flash).
+
+Nginx is serving the local directory `/tmp` as its root, so I put `vid.html` in the `/tmp` directory.
+To get it running, I just pointed a browser to `http://127.0.0.1/vid.html`
+
+
+Here is the HTML
+
+```
+<head>
+  <link href="https://vjs.zencdn.net/7.10.2/video-js.css" rel="stylesheet" />
+  <!-- If you'd like to support IE8 (for Video.js versions prior to v7) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.10.2/video.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-flash/2.2.1/videojs-flash.js"></script>
+</head>
+
+
+<body>
+<h1>Video Player</h1>
+  <video
+    id="my-video"
+    class="video-js"
+    controls
+    preload="auto"
+    width="640"
+    height="264"
+    data-setup="{}">
+
+    <!-- MPEG DASH -->
+    <!-- DASH is the only technology that NEEDED the Media Type -->
+    <source src="dash/bbb.mpd" type="application/dash+xml"/>
+
+    <!-- HLS -->
+    <!-- <source src="hls/bbb.m3u8"/> -->
+
+    <!-- RTMP -->
+    <!-- Worked after I enabled flash player on chrome -->
+    <!-- <source src="rtmp://127.0.0.1/live/bbb" /> -->
+
+    <p class="vjs-no-js">
+      To view this video please enable JavaScript, and consider upgrading to a
+      web browser that
+      <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+    </p>
+  </video>
+</body>
+```
+
+
+
