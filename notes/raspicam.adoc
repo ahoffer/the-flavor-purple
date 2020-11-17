@@ -61,11 +61,14 @@ raspivid -w 320 -h 240 -t 0 -rot 270 --flush -l -o tcp://0.0.0.0:1234
 View the video in VLC. Open network stream `tcp/h264://webcam.local:1234`
 
 Multicasting raw UPD h264
+
+NOTE: UNABLE TO VIEW IN VLC. :-(
+
+
 ----
 raspivid -w 320 -h 240 -t 0 -rot 270 --flush -o udp://239.0.0.1:5005
 ----
 
-NOTE: UNABLE TO VIEW IN VLC. :-(
 
 
 = Video Stream to Virtual Camera on Linux Desktop
