@@ -1,23 +1,26 @@
-== Up and running with an nginx media server
+== Up and running with Nginx media server
 
 . Instructions here: https://www.nginx.com/blog/video-streaming-for-remote-learning-with-nginx/#configure
 . The configure command that actually worked:
 +
-```
+[source]
+----
 ./auto/configure --add-module=../nginx-rtmp-module --with-http_mp4_module --with-cc-opt="-Wimplicit-fallthrough=0"
-```
+----
 
 . FFMPEG command to stream to the server:
 +
-```
+[source]
+----
 ffmpeg -re -i big_buck_bunny_640_512kb.mp4 -vcodec copy -loop -1 -c:a aac -b:a 160k -ar 44100 -strict -2 -f flv rtmp://127.0.0.1/live/bbb
 
-```
+----
 
 The `nginx.conf` file.
 I had to add some CORS stuff that I didn't understand, but made the CORS errors go away.
 
-```
+[source]
+----
 #user  nobody;
 worker_processes  1;
 
@@ -113,9 +116,9 @@ http {
         application/dash+xml mpd;
     }
 }
-```
+----
 
-The VLC network URLs
+The VLC network URLs:
 
 `http://127.0.0.1/hls/bbb.m3u8`
 
@@ -128,12 +131,13 @@ The VLC network URLs
 I created a file named `vid.html` and used the VideoJS library to display the video as MPEG DASH, HLS, or RTMP (flash).
 
 Nginx is serving the local directory `/tmp` as its root, so I put `vid.html` in the `/tmp` directory.
-To get it running, I just pointed a browser to `http://127.0.0.1/vid.html`
+To get it running, I just pointed a browser to `http://127.0.0.1/vid.html`.
 
 
-Here is the HTML
+Here is the HTML:
 
-```
+[source]
+----
 <head>
   <link href="https://vjs.zencdn.net/7.10.2/video-js.css" rel="stylesheet" />
   <!-- If you'd like to support IE8 (for Video.js versions prior to v7) -->
@@ -171,7 +175,7 @@ Here is the HTML
     </p>
   </video>
 </body>
-```
+----
 
 
 
