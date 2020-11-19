@@ -70,80 +70,61 @@ raspivid -w 320 -h 240 -t 0 -rot 270 --flush -o udp://239.0.0.1:5005
 ----
 
 
-
 = Video Stream to Virtual Camera on Linux Desktop
 
 '''
 
-=== Install v4l2 module
+=== Install v4l2 kernal module
 
-The cameras available for video conferencing show up as files in Linux.
-UNIX people will know why.
+To install the loopback camera (also called the _dummy device_),we need to install a kernel module.
 
-If you have a video input device already connected to your computer, you can list it:
+==== Option #1: Use `apt` to install kernel module
 
 ----
-ls -l /dev/video*
+sudo apt install v4l2loopback-dkms v4l2loopback-utils
 ----
 
-To install the loopback camera (also called the _dummy device_),
-we need to install a kernel module.
+NOTE: If Option #1 does not work, uninstall the `v4l2loopback-dkms` and use Option #2
 
-[WARNING]
-====
-Installing the v4l2 kernel module using a package manager (in this case, `apt`) did not work well for me.
-Compiling the module from source worked better.
-====
+==== Option #2: Compile and install the kernel module
 
-. Compile and install the kernel module
-+
-Follow the instructions in the README https://github.com/umlaeute/v4l2loopback
-+
-. I had to reboot here to get the module to install.
-+
+Follow the instructions in the README https://github.com/umlaeute/v4l2loopback.
+(After installation, I had to reboot here to get the module to install).
+
+_Do you have to install  v4l2loopback-utils or does building the repo do it for you?_
+
+Update your packages (mine did not work without doing this) and reboot.
 ----
+sudo apt update && sudo apt upgrade -y
 sudo reboot
 ----
-+
-. Install the associated utilities.
-----
-  sudo apt install v4l-utils
-----
-. List cameras. No virtual (dummy) camera in list.
-+
-----
-  v4l2-ctl --list-devices
-----
 
-. Add the v4l2 module to the running kernel
-+
+==== Run the kernel module
+
 ----
 sudo modprobe v4l2loopback exclusive_caps=1
 ----
-+
+
 The option `exclusive_caps=1` helps programs like Zoom recognize the dummy device as a legitimate camera.
-+
+
 [IMPORTANT]
 ====
 Rebooting loses the v4l2loopback device. +
-Add string `v4l2loopback exclusive_caps=1` on its own line in the `/etc/modules` file to load them module at boot time.
+Add string `v4l2loopback exclusive_caps=1` on its own line in the `/etc/modules` file to load module at boot time.
 ====
 
-. List cameras again.
-+
+==== Verify loopback camera
+
 ----
 v4l2-ctl --list-devices
 ----
-+
-Look for a new item `Dummy video device (0x0000) (platform:v4l2loopback-000)`
-+
-Note the device name.
+
+Look for a item `Dummy video device (0x0000) (platform:v4l2loopback-000)`
+
+**Note the device name.**
 My dummy device was `/dev/video0/`
-Executing the modprobe from the command line generally creates
-
-'''
-
-=== Test Dummy/Loopback Device
+__
+==== Test Dummy/Loopback Device
 
 . Install FFMPEG
 +

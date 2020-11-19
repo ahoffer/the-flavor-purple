@@ -1,0 +1,1 @@
+aaron@aaron-dell:~/Videos$ ffmpeg -stream_loop -1 -re -i red-bull-rampage-2015.mp4 -f v4l2 /dev/video4
