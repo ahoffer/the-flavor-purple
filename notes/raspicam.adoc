@@ -123,14 +123,13 @@ Look for a item `Dummy video device (0x0000) (platform:v4l2loopback-000)`
 
 **Note the device name.**
 My dummy device was `/dev/video0/`
-__
+
 ==== Test Dummy/Loopback Device
 
 [IMPORTANT]
 ====
 Many programs like Zoom or Cheese do not recognize the dummy device
 unless it is **actively streaming video**.
-If you are not playing the video to the dummy device, it will not appear in the list of available cameras.
 ====
 
 . Install FFMPEG
