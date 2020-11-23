@@ -1,5 +1,8 @@
 == Up and running with Nginx media server
 
+
+=== Installation
+
 . Instructions here: https://www.nginx.com/blog/video-streaming-for-remote-learning-with-nginx/#configure
 . The configure command that actually worked:
 +
@@ -8,13 +11,7 @@
 ./auto/configure --add-module=../nginx-rtmp-module --with-http_mp4_module --with-cc-opt="-Wimplicit-fallthrough=0"
 ----
 
-. FFMPEG command to stream to the server:
-+
-[source]
-----
-ffmpeg -re -i big_buck_bunny_640_512kb.mp4 -vcodec copy -loop -1 -c:a aac -b:a 160k -ar 44100 -strict -2 -f flv rtmp://127.0.0.1/live/bbb
-
-----
+=== Configuration
 
 The `nginx.conf` file.
 I had to add some CORS stuff that I didn't understand, but made the CORS errors go away.
@@ -118,6 +115,17 @@ http {
 }
 ----
 
+=== Stream Video to the Server
+
+. FFMPEG command to stream to the server:
++
+[source]
+----
+ffmpeg -re -i big_buck_bunny_640_512kb.mp4 -vcodec copy -loop -1 -c:a aac -b:a 160k -ar 44100 -strict -2 -f flv rtmp://127.0.0.1/live/bbb
+----
+
+==== Testing with VLC
+
 The VLC network URLs:
 
 `http://127.0.0.1/hls/bbb.m3u8`
@@ -126,13 +134,12 @@ The VLC network URLs:
 
 `rtmp://127.0.0.1/live/bbb`
 
-== Creating the Web Page
+=== Creating a Web Page
 
 I created a file named `vid.html` and used the VideoJS library to display the video as MPEG DASH, HLS, or RTMP (flash).
 
 Nginx is serving the local directory `/tmp` as its root, so I put `vid.html` in the `/tmp` directory.
 To get it running, I just pointed a browser to `http://127.0.0.1/vid.html`.
-
 
 Here is the HTML:
 
@@ -176,6 +183,3 @@ Here is the HTML:
   </video>
 </body>
 ----
-
-
-
